@@ -20,13 +20,25 @@ export async function loadAudio(blob: Blob): Promise<AudioHandle> {
   let startCtxTime = 0;
   let startOffset = 0;
   let playing = false;
+  let everStarted = false;
+
+  const stop = () => {
+    if (source) {
+      try {
+        source.stop();
+      } catch {}
+      source.disconnect();
+      source = null;
+    }
+    playing = false;
+  };
 
   return {
     ctx,
     buffer,
     durationSec: buffer.duration,
     start(offsetSec = 0) {
-      this.stop();
+      stop();
       source = ctx.createBufferSource();
       source.buffer = buffer;
       source.connect(ctx.destination);
@@ -37,19 +49,15 @@ export async function loadAudio(blob: Blob): Promise<AudioHandle> {
       startOffset = offsetSec;
       source.start(0, offsetSec);
       playing = true;
+      everStarted = true;
     },
-    stop() {
-      if (source) {
-        try {
-          source.stop();
-        } catch {}
-        source.disconnect();
-        source = null;
-      }
-      playing = false;
-    },
+    stop,
+    // Wall-time elapsed since `start()` was last called, in seconds.
+    // Keeps advancing using the AudioContext clock even after playback
+    // ends, so callers (the game loop) can continue judging notes that
+    // sit past the buffer end due to a positive timing offset.
     elapsedSec() {
-      if (!playing) return 0;
+      if (!everStarted) return 0;
       return ctx.currentTime - startCtxTime + startOffset;
     },
     isPlaying() {

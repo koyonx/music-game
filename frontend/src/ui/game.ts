@@ -28,28 +28,41 @@ export const renderGame = (host: HTMLElement, song: Song, chart: Chart) => {
 
   let game: Game | null = null;
   let cancelled = false;
+  let pendingStart: ReturnType<typeof setTimeout> | null = null;
 
   const onKey = (e: KeyboardEvent) => {
     if (e.code === "Escape") {
       cancelled = true;
+      if (pendingStart) clearTimeout(pendingStart);
       game?.stop();
       navigate(renderSongSelect);
     }
   };
   window.addEventListener("keydown", onKey);
 
+  // Combine the per-chart offset (saved in the editor) with the user's
+  // global calibration; convert to seconds for the engine.
+  const globalOffsetMs = Number(localStorage.getItem("mg.audioOffsetMs") ?? "0") || 0;
+  const audioOffsetSec = (chart.offsetMs + globalOffsetMs) / 1000;
+
   (async () => {
     const blob = await getAudio(song.audioHash);
+    if (cancelled) return;
     if (!blob) {
       alert("Audio not found in local storage. Re-upload the song.");
       navigate(renderSongSelect);
       return;
     }
     const audio = await loadAudio(blob);
+    if (cancelled) {
+      audio.stop();
+      return;
+    }
     game = new Game({
       audio,
       chart,
       canvas,
+      audioOffsetSec,
       onComboChange: () => updateHud(),
       onJudgment: () => updateHud(),
       onEnd: async () => {
@@ -74,11 +87,16 @@ export const renderGame = (host: HTMLElement, song: Song, chart: Chart) => {
       scoreEl.textContent = `${s.score.toString().padStart(6, "0")}  combo ${game!.judge.combo}`;
     }
     // Allow user to read the chart for 800ms before audio starts.
-    setTimeout(() => game!.start(), 800);
+    pendingStart = setTimeout(() => {
+      pendingStart = null;
+      if (cancelled) return;
+      game!.start();
+    }, 800);
   })();
 
   return () => {
     cancelled = true;
+    if (pendingStart) clearTimeout(pendingStart);
     game?.stop();
     window.removeEventListener("keydown", onKey);
   };

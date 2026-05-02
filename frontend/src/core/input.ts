@@ -17,10 +17,10 @@ export const DEFAULT_KEYMAP: KeyMap = {
 export function loadKeymap(): KeyMap {
   try {
     const raw = localStorage.getItem("mg.keymap");
-    if (!raw) return DEFAULT_KEYMAP;
+    if (!raw) return { ...DEFAULT_KEYMAP };
     return JSON.parse(raw);
   } catch {
-    return DEFAULT_KEYMAP;
+    return { ...DEFAULT_KEYMAP };
   }
 }
 

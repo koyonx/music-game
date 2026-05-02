@@ -4,6 +4,10 @@ import { InputManager } from "./input";
 import { Judge, WINDOWS } from "./judgment";
 import { getActiveTheme, type ThemePalette } from "../themes/themes";
 
+// Extra real-time we keep the loop alive past the audio buffer end so that
+// late notes (positive offset) and miss-window expiry have time to resolve.
+const END_TAIL_SEC = 0.5;
+
 export interface GameOptions {
   audio: AudioHandle;
   chart: Chart;
@@ -96,9 +100,19 @@ export class Game {
       for (const s of expired) this.opts.onJudgment?.("miss", s.note.lane);
     }
     this.draw(t);
-    if (t > this.opts.audio.durationSec + 0.5 || !this.opts.audio.isPlaying()) {
-      // End: ensure remaining unjudged notes are missed.
-      this.judge.expireMisses(t + 1);
+    // End condition: judgment-clock has passed the chart's playable region.
+    // The chart-time (`t`) the player sees is `audioElapsed - offset`, so the
+    // last note becomes hittable up to `WINDOWS.miss` after its scheduled
+    // chart-time. We give an additional `END_TAIL_SEC` margin before forcing
+    // any leftover notes to miss. `now()` keeps ticking off the AudioContext
+    // clock even after the buffer ends, so positive offsets don't truncate
+    // the tail.
+    const lastNoteTime = this.judge.states.length
+      ? this.judge.states[this.judge.states.length - 1].note.time
+      : 0;
+    const playableEnd = Math.max(this.opts.audio.durationSec, lastNoteTime + WINDOWS.miss);
+    if (t > playableEnd + END_TAIL_SEC) {
+      this.judge.expireMisses(Number.POSITIVE_INFINITY);
       this.running = false;
       this.opts.onEnd();
       return;
