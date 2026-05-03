@@ -17,8 +17,8 @@
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["/shared/*"]
+      "@shared/*": ["../shared/*"]
     }
   },
-  "include": ["src/**/*", "/shared/**/*"]
+  "include": ["src/**/*", "../shared/**/*"]
 }

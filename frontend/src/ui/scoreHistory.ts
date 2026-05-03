@@ -56,7 +56,7 @@ export const renderScoreHistory = (host: HTMLElement) => {
                   <td>${(s.accuracy * 100).toFixed(2)}%</td>
                   <td>${s.maxCombo}</td>
                   <td>${s.perfect}/${s.great}/${s.good}/${s.miss}</td>
-                  <td>${s.themeUsed}</td>
+                  <td>${escape(s.themeUsed)}</td>
                 </tr>
               `;
             })

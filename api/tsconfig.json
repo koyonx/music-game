@@ -13,9 +13,9 @@
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["/shared/*"]
+      "@shared/*": ["../shared/*"]
     },
     "types": ["node"]
   },
-  "include": ["src/**/*", "drizzle.config.ts", "/shared/**/*"]
+  "include": ["src/**/*", "drizzle.config.ts", "../shared/**/*"]
 }
