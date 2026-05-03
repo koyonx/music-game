@@ -27,6 +27,9 @@ export const renderGame = (host: HTMLElement, song: Song, chart: Chart) => {
   const scoreEl = root.querySelector<HTMLDivElement>("#score")!;
 
   let game: Game | null = null;
+  // Held in case the screen tears down before `Game` is constructed — Game
+  // takes ownership of closing it once attached.
+  let pendingAudio: Awaited<ReturnType<typeof loadAudio>> | null = null;
   let cancelled = false;
   let pendingStart: ReturnType<typeof setTimeout> | null = null;
 
@@ -55,9 +58,10 @@ export const renderGame = (host: HTMLElement, song: Song, chart: Chart) => {
     }
     const audio = await loadAudio(blob);
     if (cancelled) {
-      audio.stop();
+      void audio.close();
       return;
     }
+    pendingAudio = audio;
     game = new Game({
       audio,
       chart,
@@ -97,7 +101,12 @@ export const renderGame = (host: HTMLElement, song: Song, chart: Chart) => {
   return () => {
     cancelled = true;
     if (pendingStart) clearTimeout(pendingStart);
-    game?.stop();
+    if (game) {
+      game.stop(); // closes its audio
+    } else if (pendingAudio) {
+      void pendingAudio.close();
+    }
+    pendingAudio = null;
     window.removeEventListener("keydown", onKey);
   };
 };

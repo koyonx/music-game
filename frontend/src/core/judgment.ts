@@ -131,11 +131,12 @@ export class Judge {
     const expectedEnd = held.note.time + (held.note.holdMs ?? 0) / 1000;
     const releaseDelta = nowSec - expectedEnd;
     let finalKind: JudgmentKind;
-    if (releaseDelta < -WINDOWS.miss) {
-      // Released far too early.
+    // Any release outside the good window (early or late) is a miss; tap
+    // notes have the same rule, so don't be looser here.
+    const releaseKind = classifyTiming(Math.abs(releaseDelta));
+    if (!releaseKind) {
       finalKind = "miss";
     } else {
-      const releaseKind = classifyTiming(Math.abs(releaseDelta)) ?? "good";
       // The worse of press / release governs the final judgment.
       finalKind = worseOf(held.hold.pressKind, releaseKind);
     }

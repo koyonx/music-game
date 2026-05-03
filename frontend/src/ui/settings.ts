@@ -65,30 +65,46 @@ export const renderSettings = (host: HTMLElement) => {
     themesEl.appendChild(card);
   }
 
-  // Keys.
+  // Keys. Only one capture-listener may be active at a time — clicking a
+  // second lane button before pressing a key cancels the first capture so a
+  // single keypress doesn't rebind multiple lanes.
   const keysEl = root.querySelector<HTMLDivElement>("#keys")!;
-  const buttonsByLane: HTMLButtonElement[] = [];
+  let activeCapture: { cancel: () => void } | null = null;
   for (let lane = 0; lane < 6; lane++) {
     const b = document.createElement("button");
     b.style.minWidth = "64px";
     const code = Object.keys(km).find((k) => km[k] === lane) ?? "?";
     b.textContent = `${lane}: ${code.replace("Key", "")}`;
+    const labelOf = (laneN: number) => {
+      const c = Object.keys(km).find((k) => km[k] === laneN) ?? "?";
+      return `${laneN}: ${c.replace("Key", "")}`;
+    };
     b.onclick = () => {
+      // Cancel any in-flight capture before starting a new one.
+      activeCapture?.cancel();
       b.textContent = `${lane}: …`;
       const handler = (e: KeyboardEvent) => {
         e.preventDefault();
-        // Remove existing assignment of same code or same lane.
         for (const k of Object.keys(km)) {
           if (km[k] === lane || k === e.code) delete km[k];
         }
         km[e.code] = lane as KeyMap[string];
         saveKeymap(km);
-        b.textContent = `${lane}: ${e.code.replace("Key", "")}`;
-        window.removeEventListener("keydown", handler);
+        b.textContent = labelOf(lane);
+        cleanup();
       };
+      const cleanup = () => {
+        window.removeEventListener("keydown", handler);
+        activeCapture = null;
+      };
+      const cancel = () => {
+        // Restore the original label and tear down without rebinding.
+        b.textContent = labelOf(lane);
+        cleanup();
+      };
+      activeCapture = { cancel };
       window.addEventListener("keydown", handler, { once: true });
     };
-    buttonsByLane.push(b);
     keysEl.appendChild(b);
   }
 

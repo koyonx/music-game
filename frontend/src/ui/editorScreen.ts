@@ -58,11 +58,14 @@ export const renderEditor = (host: HTMLElement, song: Song, chart: Chart) => {
   })();
 
   root.querySelector<HTMLButtonElement>("#back")!.onclick = () => {
-    audio?.stop();
+    void audio?.close();
+    audio = null;
     editor?.destroy();
     navigate(renderSongSelect);
   };
-  root.querySelector<HTMLButtonElement>("#play")!.onclick = () => audio?.start(0);
+  root.querySelector<HTMLButtonElement>("#play")!.onclick = () => {
+    void audio?.start(0);
+  };
   root.querySelector<HTMLButtonElement>("#pause")!.onclick = () => audio?.stop();
 
   root.querySelector<HTMLButtonElement>("#save")!.onclick = async () => {
@@ -95,13 +98,15 @@ export const renderEditor = (host: HTMLElement, song: Song, chart: Chart) => {
       source: chart.source,
       notes,
     });
-    audio?.stop();
+    void audio?.close();
+    audio = null;
     editor?.destroy();
     navigate((h) => renderGame(h, song, updated));
   };
 
   return () => {
-    audio?.stop();
+    void audio?.close();
+    audio = null;
     editor?.destroy();
   };
 };

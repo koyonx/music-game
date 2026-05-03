@@ -9,6 +9,10 @@ export interface AudioHandle {
   // returned promise resolves once playback has actually started.
   start: (offsetSec?: number) => Promise<void>;
   stop: () => void;
+  // Stop and release the AudioContext. Call from screen teardown — browsers
+  // (Safari/iOS in particular) cap concurrent contexts and stop accepting
+  // new playback once the cap is reached.
+  close: () => Promise<void>;
   // Returns elapsed seconds since start() was called (0 if not playing).
   elapsedSec: () => number;
   isPlaying: () => boolean;
@@ -63,6 +67,12 @@ export async function loadAudio(blob: Blob): Promise<AudioHandle> {
       everStarted = true;
     },
     stop,
+    async close() {
+      stop();
+      try {
+        await ctx.close();
+      } catch {}
+    },
     // Wall-time elapsed since `start()` was last called, in seconds.
     // Keeps advancing using the AudioContext clock even after playback
     // ends, so callers (the game loop) can continue judging notes that

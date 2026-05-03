@@ -76,7 +76,10 @@ export class Game {
     this.running = false;
     cancelAnimationFrame(this.rafId);
     this.input.detach();
-    this.opts.audio.stop();
+    // Best-effort: close the AudioContext so we don't accumulate them
+    // across sessions. Browsers (notably Safari/iOS) cap concurrent
+    // contexts and will silently refuse playback once the cap is hit.
+    void this.opts.audio.close();
   }
 
   private now(): number {
