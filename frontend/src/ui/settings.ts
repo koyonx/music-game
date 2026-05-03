@@ -122,5 +122,11 @@ export const renderSettings = (host: HTMLElement) => {
   root.querySelector<HTMLButtonElement>("#back")!.onclick = () =>
     navigate(renderMenu);
 
-  return () => {};
+  return () => {
+    // If the screen is torn down while a key-capture is in progress (user
+    // clicked a lane button then navigated/themed away), the window-level
+    // listener would otherwise outlive the screen and rewrite the keymap on
+    // the next keystroke anywhere in the app.
+    activeCapture?.cancel();
+  };
 };

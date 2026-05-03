@@ -131,17 +131,22 @@ export class Judge {
     const expectedEnd = held.note.time + (held.note.holdMs ?? 0) / 1000;
     const releaseDelta = nowSec - expectedEnd;
     let finalKind: JudgmentKind;
-    // Any release outside the good window (early or late) is a miss; tap
-    // notes have the same rule, so don't be looser here.
-    const releaseKind = classifyTiming(Math.abs(releaseDelta));
-    if (!releaseKind) {
-      finalKind = "miss";
+    if (releaseDelta < 0) {
+      // Early release. Penalize by how early it was.
+      const abs = -releaseDelta;
+      if (abs > WINDOWS.miss) {
+        finalKind = "miss";
+      } else {
+        const earlyKind = classifyTiming(abs) ?? "miss";
+        finalKind = worseOf(held.hold.pressKind, earlyKind);
+      }
     } else {
-      // The worse of press / release governs the final judgment.
-      finalKind = worseOf(held.hold.pressKind, releaseKind);
+      // On time or late: the player held through the tail. Treat the same
+      // as "kept holding" — `expireMisses` would commit `pressKind` if the
+      // key were never released, so a slightly-late release shouldn't be
+      // strictly worse than not releasing at all.
+      finalKind = held.hold.pressKind;
     }
-    // Use the release time as `actualTime`; deltaMs records release timing
-    // relative to the hold tail.
     this.commit(held, finalKind, nowSec, releaseDelta * 1000);
     return { state: held, kind: finalKind };
   }

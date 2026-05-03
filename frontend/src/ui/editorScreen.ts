@@ -36,15 +36,22 @@ export const renderEditor = (host: HTMLElement, song: Song, chart: Chart) => {
   let audio: AudioHandle | null = null;
   let editor: Editor | null = null;
   let notes = chart.notes.slice();
+  let cancelled = false;
 
   (async () => {
     const blob = await getAudio(song.audioHash);
+    if (cancelled) return;
     if (!blob) {
       toast("Audio not found");
       navigate(renderSongSelect);
       return;
     }
-    audio = await loadAudio(blob);
+    const loaded = await loadAudio(blob);
+    if (cancelled) {
+      void loaded.close();
+      return;
+    }
+    audio = loaded;
     editor = new Editor({
       audio,
       canvas: root.querySelector<HTMLCanvasElement>("#ec")!,
@@ -58,6 +65,7 @@ export const renderEditor = (host: HTMLElement, song: Song, chart: Chart) => {
   })();
 
   root.querySelector<HTMLButtonElement>("#back")!.onclick = () => {
+    cancelled = true;
     void audio?.close();
     audio = null;
     editor?.destroy();
@@ -98,6 +106,7 @@ export const renderEditor = (host: HTMLElement, song: Song, chart: Chart) => {
       source: chart.source,
       notes,
     });
+    cancelled = true;
     void audio?.close();
     audio = null;
     editor?.destroy();
@@ -105,6 +114,7 @@ export const renderEditor = (host: HTMLElement, song: Song, chart: Chart) => {
   };
 
   return () => {
+    cancelled = true;
     void audio?.close();
     audio = null;
     editor?.destroy();
