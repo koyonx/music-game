@@ -1,0 +1,60 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: musicgame
+      POSTGRES_PASSWORD: musicgame
+      POSTGRES_DB: musicgame
+    ports:
+      - "5433:5432"
+    volumes:
+      - mg_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U musicgame -d musicgame"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://musicgame:musicgame@postgres:5432/musicgame
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      PORT: "8787"
+      NODE_ENV: development
+    ports:
+      - "8787:8787"
+    volumes:
+      - ./api:/app
+      - ./shared:/shared:ro
+      - mg_api_node_modules:/app/node_modules
+    command: sh -c "npm install && npm run db:push && npm run dev"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      VITE_API_BASE: http://localhost:8787
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - ./shared:/shared:ro
+      - mg_frontend_node_modules:/app/node_modules
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+
+volumes:
+  mg_pgdata:
+  mg_api_node_modules:
+  mg_frontend_node_modules:
