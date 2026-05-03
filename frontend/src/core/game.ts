@@ -58,13 +58,16 @@ export class Game {
     this.theme = getActiveTheme();
     this.input = new InputManager(() => this.now());
     this.input.onPress(({ lane, timeSec }) => this.handlePress(lane, timeSec));
+    this.input.onRelease((lane, timeSec) => this.handleRelease(lane, timeSec));
     this.resizeCanvas();
   }
 
-  start() {
+  async start() {
     this.resizeCanvas();
     this.input.attach();
-    this.opts.audio.start(0);
+    // Wait for audio to actually begin (resume on suspended contexts) so the
+    // loop's first frame isn't drawn before playback exists.
+    await this.opts.audio.start(0);
     this.running = true;
     this.loop();
   }
@@ -84,6 +87,19 @@ export class Game {
     const result = this.judge.press(lane, t);
     if (result) {
       this.flashes.push({ lane, startedAt: performance.now(), kind: result.kind });
+      // Hold notes don't show judgment text on press — wait for release.
+      const isHold = !!(result.state.note.holdMs && result.state.note.holdMs > 0);
+      if (!isHold) {
+        this.lastJudgment = { kind: result.kind, at: performance.now() };
+        this.opts.onComboChange?.(this.judge.combo);
+      }
+      this.opts.onJudgment?.(result.kind, lane);
+    }
+  }
+
+  private handleRelease(lane: Lane, t: number) {
+    const result = this.judge.release(lane, t);
+    if (result) {
       this.lastJudgment = { kind: result.kind, at: performance.now() };
       this.opts.onComboChange?.(this.judge.combo);
       this.opts.onJudgment?.(result.kind, lane);

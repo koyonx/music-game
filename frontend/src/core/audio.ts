@@ -4,7 +4,10 @@ export interface AudioHandle {
   ctx: AudioContext;
   buffer: AudioBuffer;
   durationSec: number;
-  start: (offsetSec?: number) => void;
+  // start() resumes the AudioContext if needed (browsers' autoplay policy
+  // leaves it suspended until a user gesture), then begins playback. The
+  // returned promise resolves once playback has actually started.
+  start: (offsetSec?: number) => Promise<void>;
   stop: () => void;
   // Returns elapsed seconds since start() was called (0 if not playing).
   elapsedSec: () => number;
@@ -37,8 +40,16 @@ export async function loadAudio(blob: Blob): Promise<AudioHandle> {
     ctx,
     buffer,
     durationSec: buffer.duration,
-    start(offsetSec = 0) {
+    async start(offsetSec = 0) {
       stop();
+      // Browsers (Safari/iOS, many Chrome setups) leave AudioContexts in
+      // `suspended` state until a user gesture. Without this resume the
+      // visual timer would advance while playback stayed silent.
+      if (ctx.state === "suspended") {
+        try {
+          await ctx.resume();
+        } catch {}
+      }
       source = ctx.createBufferSource();
       source.buffer = buffer;
       source.connect(ctx.destination);

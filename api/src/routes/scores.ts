@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { and, desc, eq, max, sql } from "drizzle-orm";
+import { desc, eq, max, sql } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 
 const summarySchema = z.object({
@@ -106,29 +106,33 @@ scoresRoutes.get("/:id", async (c) => {
 
 scoresRoutes.get("/stats/:chartId", async (c) => {
   const chartId = c.req.param("chartId");
-  const [stats] = await db
+  // Best run: pick the single row with the highest score, and report ITS
+  // accuracy. Computing max(score) and max(accuracy) independently can
+  // surface a (score, accuracy) pair that no actual play achieved.
+  const [best] = await db
+    .select({ score: schema.scores.score, accuracy: schema.scores.accuracy })
+    .from(schema.scores)
+    .where(eq(schema.scores.chartId, chartId))
+    .orderBy(desc(schema.scores.score), desc(schema.scores.accuracy))
+    .limit(1);
+
+  const [agg] = await db
     .select({
-      chartId: schema.scores.chartId,
-      bestScore: max(schema.scores.score),
-      bestAccuracy: max(schema.scores.accuracy),
       playCount: sql<number>`count(*)::int`,
       lastPlayedAt: max(schema.scores.playedAt),
       fullComboCount: sql<number>`sum(case when ${schema.scores.fullCombo} then 1 else 0 end)::int`,
       allPerfectCount: sql<number>`sum(case when ${schema.scores.allPerfect} then 1 else 0 end)::int`,
     })
     .from(schema.scores)
-    .where(eq(schema.scores.chartId, chartId))
-    .groupBy(schema.scores.chartId);
-  if (!stats) {
-    return c.json({
-      chartId,
-      bestScore: 0,
-      bestAccuracy: 0,
-      playCount: 0,
-      lastPlayedAt: null,
-      fullComboCount: 0,
-      allPerfectCount: 0,
-    });
-  }
-  return c.json(stats);
+    .where(eq(schema.scores.chartId, chartId));
+
+  return c.json({
+    chartId,
+    bestScore: best?.score ?? 0,
+    bestAccuracy: best?.accuracy ?? 0,
+    playCount: agg?.playCount ?? 0,
+    lastPlayedAt: agg?.lastPlayedAt ?? null,
+    fullComboCount: agg?.fullComboCount ?? 0,
+    allPerfectCount: agg?.allPerfectCount ?? 0,
+  });
 });
